@@ -28,6 +28,10 @@ class User(AbstractUser):
     )
 
     @property
+    def is_user(self):
+        return self.role == User.Role_choices.USER
+
+    @property
     def is_admin(self):
         return self.role == User.Role_choices.ADMINISTRATOR
 

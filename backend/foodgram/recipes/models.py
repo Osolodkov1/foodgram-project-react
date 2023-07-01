@@ -1,13 +1,14 @@
 from colorfield.fields import ColorField
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.contrib.auth import get_user_model
 
-from users.models import User
+User = get_user_model()
 
 
 class Ingredient(models.Model):
     name = models.CharField(
-        verbose_name='Наименование ингредиента',
+        verbose_name='Ингредиент',
         max_length=200,
         unique=True
     )
@@ -33,13 +34,13 @@ class Ingredient(models.Model):
 
 class Tag(models.Model):
     name = models.CharField(
-        verbose_name='Наименование тега',
+        verbose_name='Тег',
         max_length=200,
         unique=True
     )
     slug = models.SlugField(unique=True)
     color = ColorField(
-        verbose_name='Цветовой HEX-код',
+        verbose_name='Цвет в HEX',
         default='#FF0000',
         unique=True
     )
@@ -67,13 +68,12 @@ class Recipe(models.Model):
         verbose_name='Автор рецепта'
     )
     name = models.CharField(
-        verbose_name='Наименование рецепта',
+        verbose_name='Название рецепта',
         max_length=200
     )
     image = models.ImageField(
-        verbose_name='Картинка',
+        verbose_name='Фото',
         upload_to='recipes/',
-        help_text='Загрузите картинку',
     )
     text = models.TextField(
         verbose_name='Описание рецепта'
@@ -83,7 +83,6 @@ class Recipe(models.Model):
         through='IngredientInRecipe',
         related_name='Ингредиент',
         verbose_name='Ингредиенты',
-        help_text='Выберите ингредиенты для рецепта'
     )
     tags = models.ManyToManyField(
         Tag,
@@ -116,22 +115,22 @@ class Recipe(models.Model):
 
 
 class IngredientInRecipe(models.Model):
-    amount = models.PositiveSmallIntegerField(
-        verbose_name='Количество в рецепте',
-        default=0,
-        validators=[MinValueValidator(1)]
-    )
     ingredient = models.ForeignKey(
         Ingredient,
         on_delete=models.CASCADE,
         related_name='ingredient',
-        verbose_name='Ингредиента в рецепте',
+        verbose_name='Ингредиент в рецепте',
     )
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
         related_name='recipe',
         verbose_name='Рецепт',
+    )
+    amount = models.PositiveSmallIntegerField(
+        verbose_name='Количество ингредиентов в рецепте',
+        default=0,
+        validators=[MinValueValidator(1)]
     )
 
     class Meta:
@@ -185,7 +184,7 @@ class FavoriteRecipe(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='is_favorited',
-        verbose_name='Владелец избранного',
+        verbose_name='Автор избранного',
     )
     recipe = models.ForeignKey(
         Recipe,

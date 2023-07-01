@@ -1,24 +1,27 @@
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
-
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import (IsAuthenticatedOrReadOnly,
+                                        IsAuthenticated)
 from rest_framework.response import Response
 
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe,
-                            ShoppingCart, Subscribe, Tag)
+                            ShoppingCart, Subscribe, Tag, IngredientInRecipe)
 from users.models import User
 from .filters import IngredientFilter, RecipeFilter
 from .pagination import CustomPagination
 from .permissions import IsAdminOrAuthorOrReadOnly
 from .serializers import (IngredientSerializer, RecipeCreateSerializer,
                           RecipeReadSerializer, SubscribeSerializer,
-                          TagSerializer, UniversalSerializer)
+                          TagSerializer, ShortRecipeSerializer)
+from .generate_pdf_file import generate_pdf_file
 
 
-class CustomUserViewSet(UserViewSet):
+class UsersViewSet(UserViewSet):
     queryset = User.objects.all()
     pagination_class = CustomPagination
 
@@ -96,7 +99,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if models.exists():
             return Response(status=status.HTTP_400_BAD_REQUEST)
         model(author=request.user, recipe=recipe).save()
-        serializer = UniversalSerializer(recipe)
+        serializer = ShortRecipeSerializer(recipe)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def del_recipe(self, model, request, pk):
@@ -130,3 +133,26 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return self.add_recipe(ShoppingCart, request, kwargs.get('pk'))
         if request.method == 'DELETE':
             return self.del_recipe(ShoppingCart, request, kwargs.get('pk'))
+
+    @action(
+        detail=False,
+        methods=['GET'],
+        permission_classes=(IsAuthenticated,),
+    )
+    def download_shopping_cart(self, request):
+        get_cart = IngredientInRecipe.objects.filter(
+            recipe__is_in_shopping_cart__author=request.user
+        ).values(
+            'ingredient__name',
+            'ingredient__measurement_unit'
+        ).annotate(Sum('amount'))
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment;'
+        text_cart = ''
+        for value in get_cart:
+            text_cart += (
+                value['ingredient__name'] + ' - '
+                + str(value['amount__sum']) + ' '
+                + value['ingredient__measurement_unit'] + '<br/>'
+            )
+        return generate_pdf_file(text_cart, response)
