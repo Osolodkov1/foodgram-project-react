@@ -24,14 +24,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class NewAccoutUserSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        label='Электронная почта',
+        required=True
+    )
     password = serializers.CharField(
         label='Пароль',
         required=True,
         style={'input_type': 'password'}
-    )
-    email = serializers.EmailField(
-        label='Электронная почта',
-        required=True
     )
 
     class Meta:
@@ -70,13 +70,13 @@ class NewAccoutUserSerializer(serializers.ModelSerializer):
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ('id', 'name', 'color', 'slug')
+        fields = '__all__'
 
 
 class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ingredient
-        fields = ('id', 'name', 'measurement_unit')
+        fields = '__all__'
 
 
 class IngredientInRecipeSerializer(serializers.ModelSerializer):
@@ -215,6 +215,12 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
                 'Описание рецепта должно содержать не менее 10 символов.'
             )
         return text[0].upper() + text[1:]
+
+    def validate_tags(self, tags):
+        if not tags:
+            raise serializers.ValidationError(
+                'Необходимо выбрать теги!')
+        return tags
 
     def validate_cooking_time(self, cooking_time):
         if int(cooking_time) < 1:
