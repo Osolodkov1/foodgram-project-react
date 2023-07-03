@@ -169,8 +169,10 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
-        tags = self.initial_data.get('tags')
-        ingredients = self.initial_data.get('ingredients')
+        tags = self.data.get('tags')
+        ingredients = self.data.get('ingredients')
+        name = self.data.get('recipe')
+        cooking_time = self.data.get('cooking_time')
         if not tags:
             raise serializers.ValidationError('Добавьте хотя бы один тег')
         if not ingredients:
@@ -195,9 +197,6 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     'Укажите количество ингредиентов'
                 )
-        return data
-
-    def validate_name(self, name):
         if len(name) < 3:
             raise serializers.ValidationError(
                 'Название рецепта должно содержать не менее 3 символов.'
@@ -211,35 +210,20 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'Вы уже сохранили рецепт с таким названием.'
             )
-        return name
-
-    def validate_text(self, text):
-        if len(text) < 10:
-            raise serializers.ValidationError(
-                'Описание рецепта должно содержать не менее 10 символов.'
-            )
-        return text[0].upper() + text[1:]
-
-    def validate_tags(self, tags):
-        if not tags:
-            raise serializers.ValidationError(
-                'Необходимо выбрать теги!')
-        return tags
-
-    def validate_cooking_time(self, cooking_time):
         if int(cooking_time) < 1:
             raise serializers.ValidationError(
                 'Время приготовления не должно быть меньше 1 минуты.'
             )
-        return cooking_time
+        return data
 
     def create_ingredients(self, ingredients, recipe):
-        for ingredient in ingredients:
-            IngredientInRecipe(
+        IngredientInRecipe.objects.bulk_create(
+            [IngredientInRecipe(
                 recipe=recipe,
-                ingredient_id=ingredient['id'],
-                amount=ingredient.get('amount')
-            ).save()
+                amount=ingredient['amount'],
+                ingredient=Ingredient.objects.get(id=ingredient['id'])
+            ) for ingredient in ingredients]
+        )
 
     def create(self, validated_data):
         ingredients = self.initial_data.get('ingredients')
@@ -258,7 +242,7 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         ingredients = self.initial_data.get('ingredients')
         tags = validated_data.pop('tags')
         recipe.tags.set(tags)
-        IngredientInRecipe.objects.filter(recipe=recipe).all().delete()
+        IngredientInRecipe.objects.filter(recipe=recipe).delete()
         self.create_ingredients(ingredients, recipe)
         return super().update(recipe, validated_data)
 
@@ -302,8 +286,8 @@ class SubscribeSerializer(UserSerializer):
         )
 
     def validate(self, attrs):
-        user = self.initial_data.get('user')
-        author = self.initial_data.get('author')
+        user = self.data.get('user')
+        author = self.data.get('author')
         if user == author:
             raise serializers.ValidationError(
                 'На самого себя нельзя подписаться'
