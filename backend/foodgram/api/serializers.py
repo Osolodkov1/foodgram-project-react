@@ -169,6 +169,7 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
+        """"Проверка на правильность """
         tags = self.data.get('tags')
         ingredients = self.data.get('ingredients')
         name = self.data.get('recipe')
@@ -192,10 +193,6 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             except ValueError:
                 raise serializers.ValidationError(
                     'Кол-во ингредиентов должно быть указано только цифрами.'
-                )
-            if int(ingredient['amount']) <= 0:
-                raise serializers.ValidationError(
-                    'Укажите количество ингредиентов'
                 )
         if len(name) < 3:
             raise serializers.ValidationError(
