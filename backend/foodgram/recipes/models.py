@@ -204,8 +204,7 @@ class FavoriteRecipe(models.Model):
         ]
 
     def __str__(self):
-        recipe = [item['name'] for item in self.recipe.values('name')]
-        return f'{recipe}'
+        return f'{self.recipe} - избранный рецепт для {self.author}'
 
 
 class ShoppingCart(models.Model):
@@ -233,5 +232,4 @@ class ShoppingCart(models.Model):
         )
 
     def __str__(self):
-        recipe = [item['name'] for item in self.recipe.values('name')]
-        return f'{recipe}'
+        return f'{self.author} планирует приготовить {self.recipe}'
