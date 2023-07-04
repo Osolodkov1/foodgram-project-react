@@ -1,8 +1,8 @@
 from drf_base64.fields import Base64ImageField
 from rest_framework import serializers
+from django.shortcuts import get_object_or_404
 
-from recipes.models import (Ingredient, IngredientInRecipe, Recipe, Subscribe,
-                            Tag)
+from recipes.models import Ingredient, IngredientInRecipe, Recipe, Tag
 from users.models import User
 
 
@@ -169,44 +169,24 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
-        """"Проверка на правильность """
-        tags = self.data.get('tags')
-        ingredients = self.data.get('ingredients')
-        name = self.data.get('recipe')
-        cooking_time = self.data.get('cooking_time')
-        if not tags:
-            raise serializers.ValidationError('Добавьте хотя бы один тег')
-        if not ingredients:
-            raise serializers.ValidationError(
-                'Добавьте хотя бы один ингредиент.'
-            )
+        ingredients = data['ingredients']
         ingredient_list = []
-        for ingredient in ingredients:
-            ingredient_id = ingredient['id']
-            if ingredient_id in ingredient_list:
+        for items in ingredients:
+            ingredient = get_object_or_404(
+                Ingredient, id=items['id'])
+            if ingredient in ingredient_list:
                 raise serializers.ValidationError(
-                    'Ингредиент должен быть уникальным!'
-                )
-            ingredient_list.append(ingredient_id)
-            try:
-                int(ingredient['amount'])
-            except ValueError:
+                    'Ингредиент должен быть уникальным!')
+            ingredient_list.append(ingredient)
+        tags = data['tags']
+        if not tags:
+            raise serializers.ValidationError(
+                'Нужен хотя бы один тег для рецепта!')
+        for tag_name in tags:
+            if not Tag.objects.filter(name=tag_name).exists():
                 raise serializers.ValidationError(
-                    'Кол-во ингредиентов должно быть указано только цифрами.'
-                )
-        if len(name) < 3:
-            raise serializers.ValidationError(
-                'Название рецепта должно содержать не менее 3 символов.'
-            )
-        name = name[0].upper() + name[1:]
-        recipe = Recipe.objects.filter(
-            author=self.context['request'].user,
-            name=name
-        ).exists()
-        if recipe and self.context['request'].method == 'POST':
-            raise serializers.ValidationError(
-                'Вы уже сохранили рецепт с таким названием.'
-            )
+                    'Тега не существует!')
+        cooking_time = data['cooking_time']
         if int(cooking_time) < 1:
             raise serializers.ValidationError(
                 'Время приготовления не должно быть меньше 1 минуты.'
@@ -218,12 +198,12 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             [IngredientInRecipe(
                 recipe=recipe,
                 amount=ingredient['amount'],
-                ingredient=Ingredient.objects.get(id=ingredient['id'])
+                ingredient_id=ingredient.get('id'),
             ) for ingredient in ingredients]
         )
 
     def create(self, validated_data):
-        ingredients = self.initial_data.get('ingredients')
+        ingredients = validated_data.pop('ingredients')
         tags = validated_data.pop('tags')
         recipe = Recipe.objects.create(
             author=self.context['request'].user,
@@ -281,26 +261,6 @@ class SubscribeSerializer(UserSerializer):
             'id', 'username', 'first_name', 'last_name',
             'is_subscribed', 'recipes',
         )
-
-    def validate(self, attrs):
-        user = self.data.get('user')
-        author = self.data.get('author')
-        if user == author:
-            raise serializers.ValidationError(
-                'На самого себя нельзя подписаться'
-            )
-        subscribed = Subscribe.objects.filter(user=user, author=author)
-        if self.initial_data.get('method') == 'POST':
-            if subscribed.exists():
-                raise serializers.ValidationError(
-                    'Вы уже подписаны на этого автора'
-                )
-        else:
-            if not subscribed.exists():
-                raise serializers.ValidationError(
-                    'Вы не подписаны на этого автора'
-                )
-        return attrs
 
     def get_is_subscribed(self, username):
         return True
