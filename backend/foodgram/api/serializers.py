@@ -216,7 +216,7 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     def update(self, recipe, validated_data):
         recipe.ingredients.clear()
         recipe.tags.clear()
-        ingredients = self.initial_data.get('ingredients')
+        ingredients = validated_data.pop('ingredients')
         tags = validated_data.pop('tags')
         recipe.tags.set(tags)
         IngredientInRecipe.objects.filter(recipe=recipe).delete()
