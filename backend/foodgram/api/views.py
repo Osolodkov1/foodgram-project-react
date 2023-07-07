@@ -12,13 +12,13 @@ from rest_framework.response import Response
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe,
                             ShoppingCart, Subscribe, Tag, IngredientInRecipe)
 from users.models import User
-from api.filters import IngredientFilter, RecipeFilter
-from api.pagination import CustomPagination
-from api.permissions import IsAdminOrAuthorOrReadOnly
-from api.serializers import (IngredientSerializer, RecipeCreateSerializer,
-                             RecipeReadSerializer, SubscribeSerializer,
-                             TagSerializer, ShortRecipeSerializer)
-from api.generate_pdf_file import generate_pdf_file
+from .filters import IngredientFilter, RecipeFilter
+from .pagination import CustomPagination
+from .permissions import IsAdminOrAuthorOrReadOnly
+from .serializers import (IngredientSerializer, RecipeCreateSerializer,
+                          RecipeReadSerializer, SubscribeSerializer,
+                          TagSerializer, ShortRecipeSerializer)
+from .generate_pdf_file import generate_pdf_file
 
 
 class UsersViewSet(UserViewSet):
@@ -119,7 +119,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def favorite(self, request, **kwargs):
         if request.method == 'POST':
             return self.add_recipe(FavoriteRecipe, request, kwargs.get('pk'))
-        return self.del_recipe(FavoriteRecipe, request, kwargs.get('pk'))
+        if request.method == 'DELETE':
+            return self.del_recipe(FavoriteRecipe, request, kwargs.get('pk'))
 
     @action(
         detail=True,
@@ -130,7 +131,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def shopping_cart(self, request, **kwargs):
         if request.method == 'POST':
             return self.add_recipe(ShoppingCart, request, kwargs.get('pk'))
-        return self.del_recipe(ShoppingCart, request, kwargs.get('pk'))
+        if request.method == 'DELETE':
+            return self.del_recipe(ShoppingCart, request, kwargs.get('pk'))
 
     @action(
         detail=False,

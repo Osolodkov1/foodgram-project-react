@@ -1,8 +1,8 @@
 from drf_base64.fields import Base64ImageField
 from rest_framework import serializers
-from django.shortcuts import get_object_or_404
 
-from recipes.models import Ingredient, IngredientInRecipe, Recipe, Tag
+from recipes.models import (Ingredient, IngredientInRecipe, Recipe, Subscribe,
+                            Tag)
 from users.models import User
 
 
@@ -169,41 +169,80 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
-        ingredients = data['ingredients']
+        tags = self.initial_data.get('tags')
+        ingredients = self.initial_data.get('ingredients')
+        if not tags:
+            raise serializers.ValidationError('Добавьте хотя бы один тег')
+        if not ingredients:
+            raise serializers.ValidationError(
+                'Добавьте хотя бы один ингредиент.'
+            )
         ingredient_list = []
-        for items in ingredients:
-            ingredient = get_object_or_404(
-                Ingredient, id=items['id'])
-            if ingredient in ingredient_list:
+        for ingredient in ingredients:
+            ingredient_id = ingredient['id']
+            if ingredient_id in ingredient_list:
                 raise serializers.ValidationError(
-                    'Ингредиент должен быть уникальным!')
-            ingredient_list.append(ingredient)
-        tags = data['tags']
+                    'Ингредиент должен быть уникальным!'
+                )
+            ingredient_list.append(ingredient_id)
+            try:
+                int(ingredient['amount'])
+            except ValueError:
+                raise serializers.ValidationError(
+                    'Кол-во ингредиентов должно быть указано только цифрами.'
+                )
+            if int(ingredient['amount']) <= 0:
+                raise serializers.ValidationError(
+                    'Укажите количество ингредиентов'
+                )
+        return data
+
+    def validate_name(self, name):
+        if len(name) < 3:
+            raise serializers.ValidationError(
+                'Название рецепта должно содержать не менее 3 символов.'
+            )
+        name = name[0].upper() + name[1:]
+        recipe = Recipe.objects.filter(
+            author=self.context['request'].user,
+            name=name
+        ).exists()
+        if recipe and self.context['request'].method == 'POST':
+            raise serializers.ValidationError(
+                'Вы уже сохранили рецепт с таким названием.'
+            )
+        return name
+
+    def validate_text(self, text):
+        if len(text) < 10:
+            raise serializers.ValidationError(
+                'Описание рецепта должно содержать не менее 10 символов.'
+            )
+        return text[0].upper() + text[1:]
+
+    def validate_tags(self, tags):
         if not tags:
             raise serializers.ValidationError(
-                'Нужен хотя бы один тег для рецепта!')
-        for tag_name in tags:
-            if not Tag.objects.filter(name=tag_name).exists():
-                raise serializers.ValidationError(
-                    'Тега не существует!')
-        cooking_time = data['cooking_time']
+                'Необходимо выбрать теги!')
+        return tags
+
+    def validate_cooking_time(self, cooking_time):
         if int(cooking_time) < 1:
             raise serializers.ValidationError(
                 'Время приготовления не должно быть меньше 1 минуты.'
             )
-        return data
+        return cooking_time
 
     def create_ingredients(self, ingredients, recipe):
-        IngredientInRecipe.objects.bulk_create(
-            [IngredientInRecipe(
+        for ingredient in ingredients:
+            IngredientInRecipe(
                 recipe=recipe,
-                amount=ingredient['amount'],
-                ingredient_id=ingredient.get('id'),
-            ) for ingredient in ingredients]
-        )
+                ingredient_id=ingredient['id'],
+                amount=ingredient.get('amount')
+            ).save()
 
     def create(self, validated_data):
-        ingredients = validated_data.pop('ingredients')
+        ingredients = self.initial_data.get('ingredients')
         tags = validated_data.pop('tags')
         recipe = Recipe.objects.create(
             author=self.context['request'].user,
@@ -216,10 +255,10 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     def update(self, recipe, validated_data):
         recipe.ingredients.clear()
         recipe.tags.clear()
-        ingredients = validated_data.pop('ingredients')
+        ingredients = self.initial_data.get('ingredients')
         tags = validated_data.pop('tags')
         recipe.tags.set(tags)
-        IngredientInRecipe.objects.filter(recipe=recipe).delete()
+        IngredientInRecipe.objects.filter(recipe=recipe).all().delete()
         self.create_ingredients(ingredients, recipe)
         return super().update(recipe, validated_data)
 
@@ -261,6 +300,26 @@ class SubscribeSerializer(UserSerializer):
             'id', 'username', 'first_name', 'last_name',
             'is_subscribed', 'recipes',
         )
+
+    def validate(self, attrs):
+        user = self.initial_data.get('user')
+        author = self.initial_data.get('author')
+        if user == author:
+            raise serializers.ValidationError(
+                'На самого себя нельзя подписаться'
+            )
+        subscribed = Subscribe.objects.filter(user=user, author=author)
+        if self.initial_data.get('method') == 'POST':
+            if subscribed.exists():
+                raise serializers.ValidationError(
+                    'Вы уже подписаны на этого автора'
+                )
+        else:
+            if not subscribed.exists():
+                raise serializers.ValidationError(
+                    'Вы не подписаны на этого автора'
+                )
+        return attrs
 
     def get_is_subscribed(self, username):
         return True
